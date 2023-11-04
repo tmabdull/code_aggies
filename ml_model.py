@@ -1,10 +1,10 @@
 import json
 import googlemaps
-from datetime import datetime
-import pandas as pd
-import requests
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import linear_kernel
+# from datetime import datetime
+# import pandas as pd
+# import requests
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from sklearn.metrics.pairwise import linear_kernel
 
 from flask import Flask, request, jsonify
 import googlemaps
@@ -71,3 +71,6 @@ def get_places_info(gmaps, city_name, meal_preference, location_type='restaurant
         places_info.append(place_info)
 
     return places_info
+
+if __name__ == '__main__':
+    app.run(debug=True)
