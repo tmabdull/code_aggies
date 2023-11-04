@@ -6,45 +6,37 @@ import requests
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
-
 from flask import Flask, request, jsonify
 import googlemaps
 import csv
 import io
 
+# TODO: put in .env file
 api_KEY = 'AIzaSyBtd13vnW1CGDws_DRGGBj5wabj5kxk3xc'
 
 app = Flask(__name__)
 
+gmaps = googlemaps.Client(key=api_KEY)
+
 @app.route('/nearby_places', methods=['POST'])
 def nearby_places():
-    api_key = api_KEY
-    gmaps = googlemaps.Client(key=api_key)
+    # Parse JSON data from the request
+    data = request.get_json()
+    
+    # Validate the JSON data
+    if not data or 'location' not in data or 'mealPreference' not in data:
+        return jsonify({"error": "Missing 'location' or 'mealPreference' in JSON data"}), 400
 
-    # Retrieve the file from the request
-    file = request.files['file']
-    if not file:
-        return jsonify({"error": "No file part"}), 400
+    city_name = data['location']
+    meal_preference = data['mealPreference']
 
-    # Read the CSV data
-    stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-    csv_input = csv.DictReader(stream)
-
-    # Process CSV data and extract the city name
-    places_info = []
-    for row in csv_input:
-        city = row.get('city')
-        if city:
-            # Perform the Google Maps Nearby Search using the city name
-            # For simplicity, assume you have a function `get_places_info` that does this
-            places = get_places_info(gmaps, city)
-            places_info.extend(places)
-
+    # Use the provided city name and meal preference to get places info
+    places_info = get_places_info(gmaps, city_name, meal_preference)
+    
     return jsonify(places_info)
 
 
-
-def get_places_info(gmaps, city_name, location_type='restaurant', keyword=None):
+def get_places_info(gmaps, city_name, meal_preference, location_type='restaurant'):
     # Perform a Geocoding lookup to get the latitude and longitude of the city
     geocode_result = gmaps.geocode(city_name)
     if not geocode_result:
@@ -52,30 +44,30 @@ def get_places_info(gmaps, city_name, location_type='restaurant', keyword=None):
 
     # Extract latitude and longitude from the first result
     location = geocode_result[0]['geometry']['location']
-    lat = location['lat']
-    lng = location['lng']
+    lat, lng = location['lat'], location['lng']
     
-    # Use the latitude and longitude for the Nearby Search
-    places_result = gmaps.places_nearby(location=f"{lat},{lng}", type=location_type, keyword=keyword, radius=5000) # radius is in meters
+    # Perform a Nearby Search using the latitude and longitude
+    places_result = gmaps.places_nearby(
+        location=f"{lat},{lng}",
+        keyword=meal_preference,
+        type=location_type,
+        radius=5000  # radius is in meters
+    )
 
     # Initialize a list to hold place information
     places_info = []
     
-    # Check if there are results and if so, iterate over them
-    if 'results' in places_result and places_result['results']:
-        for place in places_result['results']:
-            # Construct a dictionary for each place
-            place_info = {
-                "name": place.get('name'),
-                "address": place.get('vicinity'),
-                "latitude": place['geometry']['location']['lat'],
-                "longitude": place['geometry']['location']['lng']
-            }
-            # Add the dictionary to the list
-            places_info.append(place_info)
-    else:
-        # Handle the case where no places are found
-        places_info.append({"error": f"No {location_type} found for city: {city_name}"})
-    
-    # Return the list of places
+    # Iterate over the places and add places matching the meal preference
+    for place in places_result.get('results', []):
+        # For more stringent filtering, you could check 'place.details' to see if the
+        # 'meal_preference' is truly offered by the restaurant. However, this would
+        # require additional API calls and is not shown here due to simplicity.
+        place_info = {
+            "name": place.get('name'),
+            "address": place.get('vicinity'),
+            "latitude": place['geometry']['location']['lat'],
+            "longitude": place['geometry']['location']['lng']
+        }
+        places_info.append(place_info)
+
     return places_info
